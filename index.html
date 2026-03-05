@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Import Sourcing AI — v1</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #121a2b;
+        --panel-2: #18233a;
+        --text: #e7eefc;
+        --muted: #9db0d0;
+        --accent: #5da8ff;
+        --good: #33d17a;
+        --warn: #ffcc66;
+        --bad: #ff6b6b;
+        --border: #2a3a58;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: linear-gradient(180deg, #0b1220 0%, #0e1526 100%);
+        color: var(--text);
+      }
+      .app { max-width: 1280px; margin: 0 auto; padding: 24px; }
+      h1,h2,h3 { margin: 0 0 10px; }
+      .subtitle { color: var(--muted); margin-bottom: 22px; }
+      .grid { display: grid; gap: 16px; }
+      .grid-2 { grid-template-columns: 1.1fr 1fr; }
+      .card {
+        background: linear-gradient(180deg, var(--panel), var(--panel-2));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+      }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; }
+      .field { display: grid; gap: 6px; flex: 1; min-width: 220px; }
+      input, textarea, select {
+        width: 100%;
+        background: #0f1728;
+        color: var(--text);
+        border: 1px solid #33415f;
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+      textarea { min-height: 90px; resize: vertical; }
+      button {
+        background: var(--accent);
+        color: #051329;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button.ghost { background: #24334f; color: var(--text); }
+      button:disabled { opacity: .6; cursor: not-allowed; }
+      table {
+        width: 100%; border-collapse: collapse; font-size: 13px;
+      }
+      th, td {
+        border-bottom: 1px solid #2a3a58;
+        padding: 9px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th { color: #b9c8e3; font-weight: 600; }
+      .pill {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 100px;
+        font-size: 12px;
+        border: 1px solid #3b4e75;
+      }
+      .pill.good { color: var(--good); border-color: #2d7a53; }
+      .pill.warn { color: var(--warn); border-color: #8c6c2d; }
+      .pill.bad { color: var(--bad); border-color: #8c2d2d; }
+      .stage-wrap { display: flex; flex-direction: column; gap: 8px; }
+      .stage-row {
+        display: grid;
+        grid-template-columns: 220px repeat(6, 1fr);
+        gap: 6px;
+        align-items: center;
+      }
+      .stage-cell {
+        background: #0f1728;
+        border: 1px solid #2f4064;
+        border-radius: 8px;
+        padding: 6px;
+        text-align: center;
+        font-size: 12px;
+      }
+      .stage-cell.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+      .kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+      .kpi { background: #0f1728; border: 1px solid #33415f; border-radius: 10px; padding: 10px; }
+      .kpi .label { color: var(--muted); font-size: 12px; }
+      .kpi .value { font-size: 20px; font-weight: 700; }
+      @media (max-width: 980px) {
+        .grid-2 { grid-template-columns: 1fr; }
+        .stage-row { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script>
+      const { useMemo, useState } = React;
+
+      const STAGES = ["Contacted","Responded","Compared","Negotiating","Samples Requested","Site Visit","Agreement"];
+
+      const mockSearch = (item, sector) => {
+        const names = [
+          "Shandong AgroChem Materials Co.", "Ningbo Industrial Inputs Ltd.", "Qingdao Bulk Process Materials",
+          "Jiangsu Feedstock Innovations", "Henan Raw Materials Export", "Tianjin Process Chemicals",
+          "Zhejiang Farm Inputs Manufacturing", "Anhui Industrial Consumables", "Hebei Direct Sourcing Factory",
+          "Guangzhou Export Trading Group"
+        ];
+        return names.map((name, i) => ({
+          id: i + 1,
+          supplier: name,
+          country: "China",
+          email: `sales${i+1}@${name.toLowerCase().replace(/[^a-z]/g,'').slice(0,14)}.com`,
+          status: i % 4 === 0 ? "Agent" : "Manufacturer",
+          quality: 70 + Math.round(Math.random() * 25),
+          trackRecord: 60 + Math.round(Math.random() * 35),
+          fobUsd: 22000 + Math.round(Math.random() * 18000),
+          port: i % 2 === 0 ? "Ningbo (NOR preferred)" : "Shanghai",
+          hsCode: "3824.99",
+          response: i < 3 ? "Responded" : "Pending",
+          stage: i < 2 ? "Compared" : "Contacted",
+          notes: `${item || 'Target product'} supplier candidate (${sector || 'general sector'})`
+        }));
+      };
+
+      function App() {
+        const [intake, setIntake] = useState({
+          item: "Ammonium Sulphate",
+          volume: "3 x 20ft/month",
+          sector: "Agriculture",
+          spec: "Granular, 21%N, low caking"
+        });
+        const [suppliers, setSuppliers] = useState([]);
+        const [selected, setSelected] = useState(null);
+        const [emailDraft, setEmailDraft] = useState("");
+
+        const scored = useMemo(() => suppliers.map(s => {
+          const typeScore = s.status === "Manufacturer" ? 30 : 10;
+          const qualityScore = Math.round((s.quality + s.trackRecord) / 2 * 0.5);
+          const min = Math.min(...suppliers.map(x => x.fobUsd || 999999));
+          const priceScore = min ? Math.max(5, Math.round((min / s.fobUsd) * 20)) : 0;
+          const total = typeScore + qualityScore + priceScore;
+          return { ...s, totalScore: total };
+        }).sort((a,b)=>b.totalScore-a.totalScore), [suppliers]);
+
+        const generateSearch = () => {
+          const data = mockSearch(intake.item, intake.sector);
+          setSuppliers(data);
+          setSelected(data[0]?.id || null);
+        };
+
+        const generateEmail = (supplier) => {
+          const d = `Subject: Sourcing Inquiry — ${intake.item}\n\nDear ${supplier?.supplier || 'Supplier Team'},\n\nWe are sourcing ${intake.item} for ${intake.sector} applications. Required volume: ${intake.volume}.\n\nPlease share the following:\n1) Product specification + suitability motivation for our use case\n2) FOB price per container with nominated export port (NOR ports preferred)\n3) HS code for this product\n4) Available shipping and legislative documentation (MSDS/TDS/COA/origin/compliance docs)\n\nAdditional context:\n- Spec target: ${intake.spec}\n- We prioritize direct manufacturer engagement; agent submissions must include clear value-add.\n\nRegards,\nCraig`;
+          setEmailDraft(d);
+        };
+
+        const updateStage = (id, stage) => {
+          setSuppliers(prev => prev.map(s => s.id === id ? { ...s, stage, response: stage === 'Contacted' ? 'Pending' : 'Responded' } : s));
+        };
+
+        const selectedSupplier = suppliers.find(s => s.id === selected);
+        const kpis = {
+          total: suppliers.length,
+          direct: suppliers.filter(s=>s.status==='Manufacturer').length,
+          avgFob: suppliers.length ? Math.round(suppliers.reduce((a,b)=>a+b.fobUsd,0)/suppliers.length) : 0,
+          responded: suppliers.filter(s=>s.response==='Responded').length
+        };
+
+        return React.createElement('div',{className:'app'},[
+          React.createElement('h1',{key:'h1'},'AI-Assisted Import Sourcing Tool — v1'),
+          React.createElement('div',{key:'sub',className:'subtitle'},'Built for consumable manufacturing/agri inputs sourcing workflow'),
+
+          React.createElement('div',{key:'kpis',className:'kpis'},[
+            ['Suppliers',kpis.total],['Direct Factories',kpis.direct],['Avg FOB (USD)',kpis.avgFob?`$${kpis.avgFob.toLocaleString()}`:'—'],['Responses',kpis.responded]
+              .map(([l,v],i)=>React.createElement('div',{className:'kpi',key:i},[
+                React.createElement('div',{className:'label',key:'l'},l),
+                React.createElement('div',{className:'value',key:'v'},String(v))
+              ]))
+          ]),
+
+          React.createElement('div',{key:'main',className:'grid grid-2',style:{marginTop:'16px'}},[
+            React.createElement('div',{className:'card',key:'intake'},[
+              React.createElement('h3',{key:'h'},'1) Sourcing Intake'),
+              React.createElement('div',{className:'row',key:'r1'},[
+                ['item','Target item'],['volume','Volume requirements'],['sector','Sector']
+                  .map(([k,label])=>React.createElement('label',{className:'field',key:k},[
+                    React.createElement('span',{key:'s'},label),
+                    React.createElement('input',{key:'i',value:intake[k],onChange:e=>setIntake({...intake,[k]:e.target.value})})
+                  ]))
+              ]),
+              React.createElement('label',{className:'field',key:'spec'},[
+                React.createElement('span',{key:'s'},'Spec / quality notes'),
+                React.createElement('textarea',{key:'t',value:intake.spec,onChange:e=>setIntake({...intake,spec:e.target.value})})
+              ]),
+              React.createElement('div',{className:'row',key:'btns'},[
+                React.createElement('button',{key:'gen',onClick:generateSearch},'Run AI Manufacturer Search (Top 10)'),
+                React.createElement('button',{key:'clear',className:'ghost',onClick:()=>{setSuppliers([]);setEmailDraft('');}},'Reset')
+              ])
+            ]),
+
+            React.createElement('div',{className:'card',key:'mail'},[
+              React.createElement('h3',{key:'h'},'3) Outreach Email Generator'),
+              React.createElement('div',{style:{marginBottom:'8px',color:'#9db0d0'},key:'txt'}, selectedSupplier ? `Selected: ${selectedSupplier.supplier}` : 'Select a supplier below to draft outreach email.'),
+              React.createElement('div',{className:'row',key:'r'},[
+                React.createElement('button',{key:'draft',disabled:!selectedSupplier,onClick:()=>generateEmail(selectedSupplier)},'Generate Draft'),
+                React.createElement('button',{key:'copy',className:'ghost',disabled:!emailDraft,onClick:()=>navigator.clipboard?.writeText(emailDraft)},'Copy')
+              ]),
+              React.createElement('textarea',{key:'ta',value:emailDraft,onChange:e=>setEmailDraft(e.target.value),style:{minHeight:'220px',marginTop:'10px'}})
+            ])
+          ]),
+
+          React.createElement('div',{key:'tbl',className:'card',style:{marginTop:'16px'}},[
+            React.createElement('h3',{key:'h'},'2 & 4) Manufacturer Search Results + Supplier Comparison'),
+            React.createElement('table',{key:'t'},[
+              React.createElement('thead',{key:'th'},React.createElement('tr',null,['Supplier','Contact','Type','Quality','Track Record','FOB USD','Port','Response','Score'].map(c=>React.createElement('th',{key:c},c)))),
+              React.createElement('tbody',{key:'tb'},scored.map(s=>React.createElement('tr',{key:s.id,onClick:()=>setSelected(s.id),style:{background:selected===s.id?'#10203e':'transparent',cursor:'pointer'}},[
+                React.createElement('td',{key:'a'},s.supplier),
+                React.createElement('td',{key:'b'},s.email),
+                React.createElement('td',{key:'c'},React.createElement('span',{className:`pill ${s.status==='Manufacturer'?'good':'warn'}`},s.status)),
+                React.createElement('td',{key:'d'},s.quality),
+                React.createElement('td',{key:'e'},s.trackRecord),
+                React.createElement('td',{key:'f'},`$${s.fobUsd.toLocaleString()}`),
+                React.createElement('td',{key:'g'},s.port),
+                React.createElement('td',{key:'h'},s.response),
+                React.createElement('td',{key:'i',style:{fontWeight:700}},s.totalScore)
+              ]))))
+            ])
+          ]),
+
+          React.createElement('div',{key:'pipe',className:'card',style:{marginTop:'16px'}},[
+            React.createElement('h3',{key:'h'},'5) Negotiation Pipeline Tracker'),
+            React.createElement('div',{className:'stage-wrap',key:'sw'},suppliers.map(s=>React.createElement('div',{className:'stage-row',key:s.id},[
+              React.createElement('div',{key:'name'},[
+                React.createElement('strong',{key:'n'},s.supplier),
+                React.createElement('div',{style:{fontSize:'12px',color:'#9db0d0'},key:'em'},s.email)
+              ]),
+              ...STAGES.map(stage=>React.createElement('div',{key:stage,className:`stage-cell ${s.stage===stage?'active':''}`,onClick:()=>updateStage(s.id,stage)},stage))
+            ])))
+          ])
+        ]);
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+    </script>
+  </body>
+</html>
