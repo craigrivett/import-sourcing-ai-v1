@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Import Sourcing AI — v1</title>
+    <title>Import Sourcing AI — v1.1</title>
     <style>
       :root {
         --bg: #0b1220;
@@ -80,7 +80,7 @@
       .stage-wrap { display: flex; flex-direction: column; gap: 8px; }
       .stage-row {
         display: grid;
-        grid-template-columns: 220px repeat(6, 1fr);
+        grid-template-columns: 220px repeat(7, 1fr);
         gap: 6px;
         align-items: center;
       }
@@ -146,6 +146,7 @@
         const [suppliers, setSuppliers] = useState([]);
         const [selected, setSelected] = useState(null);
         const [emailDraft, setEmailDraft] = useState("");
+        const [copyStatus, setCopyStatus] = useState("");
 
         const scored = useMemo(() => suppliers.map(s => {
           const typeScore = s.status === "Manufacturer" ? 30 : 10;
@@ -171,6 +172,26 @@
           setSuppliers(prev => prev.map(s => s.id === id ? { ...s, stage, response: stage === 'Contacted' ? 'Pending' : 'Responded' } : s));
         };
 
+        const copyDraft = async () => {
+          try {
+            if (!emailDraft) return;
+            if (navigator.clipboard && window.isSecureContext) {
+              await navigator.clipboard.writeText(emailDraft);
+            } else {
+              const ta = document.createElement('textarea');
+              ta.value = emailDraft;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+            }
+            setCopyStatus('Copied ✓');
+          } catch (e) {
+            setCopyStatus('Copy failed');
+          }
+          setTimeout(() => setCopyStatus(''), 1800);
+        };
+
         const selectedSupplier = suppliers.find(s => s.id === selected);
         const kpis = {
           total: suppliers.length,
@@ -180,15 +201,19 @@
         };
 
         return React.createElement('div',{className:'app'},[
-          React.createElement('h1',{key:'h1'},'AI-Assisted Import Sourcing Tool — v1'),
+          React.createElement('h1',{key:'h1'},'AI-Assisted Import Sourcing Tool — v1.1'),
           React.createElement('div',{key:'sub',className:'subtitle'},'Built for consumable manufacturing/agri inputs sourcing workflow'),
 
           React.createElement('div',{key:'kpis',className:'kpis'},[
-            ['Suppliers',kpis.total],['Direct Factories',kpis.direct],['Avg FOB (USD)',kpis.avgFob?`$${kpis.avgFob.toLocaleString()}`:'—'],['Responses',kpis.responded]
-              .map(([l,v],i)=>React.createElement('div',{className:'kpi',key:i},[
-                React.createElement('div',{className:'label',key:'l'},l),
-                React.createElement('div',{className:'value',key:'v'},String(v))
-              ]))
+            [
+              ['Suppliers',kpis.total],
+              ['Direct Factories',kpis.direct],
+              ['Avg FOB (USD)',kpis.avgFob?`$${kpis.avgFob.toLocaleString()}`:'—'],
+              ['Responses',kpis.responded]
+            ].map(([l,v],i)=>React.createElement('div',{className:'kpi',key:i},[
+              React.createElement('div',{className:'label',key:'l'},l),
+              React.createElement('div',{className:'value',key:'v'},String(v))
+            ]))
           ]),
 
           React.createElement('div',{key:'main',className:'grid grid-2',style:{marginTop:'16px'}},[
@@ -207,7 +232,7 @@
               ]),
               React.createElement('div',{className:'row',key:'btns'},[
                 React.createElement('button',{key:'gen',onClick:generateSearch},'Run AI Manufacturer Search (Top 10)'),
-                React.createElement('button',{key:'clear',className:'ghost',onClick:()=>{setSuppliers([]);setEmailDraft('');}},'Reset')
+                React.createElement('button',{key:'clear',className:'ghost',onClick:()=>{setSuppliers([]);setEmailDraft('');setSelected(null);setCopyStatus('');}},'Reset')
               ])
             ]),
 
@@ -216,8 +241,9 @@
               React.createElement('div',{style:{marginBottom:'8px',color:'#9db0d0'},key:'txt'}, selectedSupplier ? `Selected: ${selectedSupplier.supplier}` : 'Select a supplier below to draft outreach email.'),
               React.createElement('div',{className:'row',key:'r'},[
                 React.createElement('button',{key:'draft',disabled:!selectedSupplier,onClick:()=>generateEmail(selectedSupplier)},'Generate Draft'),
-                React.createElement('button',{key:'copy',className:'ghost',disabled:!emailDraft,onClick:()=>navigator.clipboard?.writeText(emailDraft)},'Copy')
+                React.createElement('button',{key:'copy',className:'ghost',disabled:!emailDraft,onClick:copyDraft},'Copy')
               ]),
+              React.createElement('div',{key:'copyStatus',style:{fontSize:'12px',color:'#9db0d0',minHeight:'16px',marginTop:'6px'}},copyStatus),
               React.createElement('textarea',{key:'ta',value:emailDraft,onChange:e=>setEmailDraft(e.target.value),style:{minHeight:'220px',marginTop:'10px'}})
             ])
           ]),
